@@ -2,15 +2,29 @@ import os
 import sys
 import csv
 from datetime import datetime
+import time
 from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
 from databases import Database
 import asyncio
-import logging
 
 from tld import get_tld
+import validators
+import signal
+import time
+import logging, sys
+
+
+class GracefulKiller:
+  kill_now = False
+  def __init__(self):
+    signal.signal(signal.SIGINT, self.exit_gracefully)
+    signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+  def exit_gracefully(self,signum, frame):
+    self.kill_now = True
 
 
 class UrlsFilter():
@@ -41,44 +55,55 @@ class NetSpider():
        TODO: add sites screenshots
     """
     def __init__(self):
+        self.step_number = 0
+        self.is_active = True
         self.filter = UrlsFilter()
         pass
 
     async def create_db(self):
         logging.info("create_db")
-        now = datetime.now()
-        date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
-        self.db_name = f"db_{date_time}.db"
+        #now = datetime.now()
+        #date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+        #self.db_name = f"db_{date_time}.db"
+        self.db_name = "database.db"
+        resume = False
         if os.path.exists(self.db_name):
-            os.remove(self.db_name)
+            resume = True
+            logging.info("resume db")
+            #os.remove(self.db_name)
         self.database = Database(f'sqlite+aiosqlite:///{self.db_name}')
         await self.database.connect()
-        query = """CREATE TABLE Urls (id INTEGER PRIMARY KEY, hostname VARCHAR(127), url VARCHAR(127) unique, src_url VARCHAR(127), visited INTEGER)"""
-        await self.database.execute(query=query)
+        if not resume:
+            logging.info("create new db")
+            query = """CREATE TABLE Urls (id INTEGER PRIMARY KEY, hostname VARCHAR(127), url VARCHAR(127) unique, src_url VARCHAR(127), visited INTEGER)"""
+            await self.database.execute(query=query)
 
     async def set_visited(self, url):
         logging.info("set_visited", url)
-        values = self.filter.get_values(url)
-        query = "INSERT INTO Urls(hostname, url, visited) VALUES (:hostname, :url, :visited)"
-        await self.database.execute(query=query, values=values)
+        try:
+            values = self.filter.get_values(url)
+            query = "INSERT INTO Urls(hostname, url, visited) VALUES (:hostname, :url, :visited)"
+            await self.database.execute(query=query, values=values)
+        except Exception as e:
+            print("Exception1:", e)
+            pass
 
-    async def loop(self):
-        logging.info("loop")
-        self.step = 0
-        while True:
-            logging.info("self.step", self.step)
-            self.step = self.step + 1
-            query = "SELECT id, hostname, url, src_url, count(visited) FROM Urls where visited==0 GROUP BY hostname ORDER BY count(visited) LIMIT 1"
-            rows = await self.database.fetch_all(query=query)
-            try:
-                #print(rows)
-                url_id = rows[0][0]
-                current_url = rows[0][2]
-                src_url = rows[0][3]
-                query = f"UPDATE Urls SET visited=1 WHERE id={url_id}"
-                await self.database.execute(query=query)
-                current_domain = urlparse(current_url).hostname
-                current_site = urlparse(current_url).scheme + "://" + urlparse(current_url).netloc
+    async def step(self):
+        logging.info("self.step", str(self.step_number))
+        self.step_number = self.step_number + 1
+        query = "SELECT id, hostname, url, src_url, count(visited) FROM Urls where visited==0 GROUP BY hostname ORDER BY count(visited) LIMIT 1"
+        rows = await self.database.fetch_all(query=query)
+        try:
+            #print(rows)
+            url_id = rows[0][0]
+            current_url = rows[0][2]
+            src_url = rows[0][3]
+            query = f"UPDATE Urls SET visited=1 WHERE id={url_id}"
+            await self.database.execute(query=query)
+            current_domain = urlparse(current_url).hostname
+            current_site = urlparse(current_url).scheme + "://" + urlparse(current_url).netloc
+            valid = validators.url(current_url)
+            if valid:
                 res = get_tld(current_url, as_object=True)
                 current_base_domain = res.fld
                 try:
@@ -95,26 +120,23 @@ class NetSpider():
                             values['src_url'] = current_url
                             query = "INSERT OR IGNORE INTO Urls(hostname, url, src_url, visited) VALUES (:hostname, :url, :src_url, :visited)"
                             await self.database.execute(query=query, values=values)
-                        if self.step > 20:
-                            break
-
+                        #if self.step > 5:
+                        #    break
                 except Exception as e:
                     #print("Exception1:", e)
                     pass
 
-            except Exception as e:
-                print("Exception2:", e)
-                break
-        pass
+        except Exception as e:
+            print(f"Exception2: {rows}", e)
 
     """
-        Controls
+    Controls
     """
     async def start(self, start_url):
         logging.info("start")
         await self.create_db()
         await self.set_visited(start_url)
-        await self.loop()
+        self.step_number = 0
 
     def stop(self):
         pass
@@ -124,10 +146,21 @@ class NetSpider():
 
 
 
-
 async def main():
+    killer = GracefulKiller()
     spider = NetSpider()
     await spider.start('http://www.arthew0.ru/')
+    try:
+        while True:
+            if spider.is_active:
+                await spider.step()
+            else:
+                time.sleep(1)
+            if killer.kill_now:
+                break
+    except KeyboardInterrupt as ex:
+        print('goodbye!')
+
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',

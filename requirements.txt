@@ -1,0 +1,6 @@
+databases
+tld
+bs4
+requests
+validators
+aiosqlite
