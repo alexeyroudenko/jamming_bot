@@ -6,7 +6,7 @@ DOCKER_TAG := latest
 
 .PHONY: test
 test:
-	python test.py
+	python jamming_bot.py
 
 .PHONY: build
 build:
