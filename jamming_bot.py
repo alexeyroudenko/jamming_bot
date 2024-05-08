@@ -89,7 +89,7 @@ class NetSpider():
             pass
 
     async def step(self):
-        logging.info("self.step", str(self.step_number))
+        #logging.info("self.step", str(self.step_number))
         self.step_number = self.step_number + 1
         query = "SELECT id, hostname, url, src_url, count(visited) FROM Urls where visited==0 GROUP BY hostname ORDER BY count(visited) LIMIT 1"
         rows = await self.database.fetch_all(query=query)
@@ -109,7 +109,7 @@ class NetSpider():
                 try:
                     response = requests.get(current_url, timeout=1)
                     soup = BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")
-                    print(self.step, src_url, ">" ,current_url)
+                    logging.info(f"step {self.step_number} \t {src_url} > {current_url}")
                     link_elements = soup.select("a[href]")
                     for link_element in link_elements:
                         url = link_element['href']
@@ -170,7 +170,7 @@ if __name__ == '__main__':
                         ],
                         # filemode='a',
                         encoding='utf-8',
-                        level=logging.ERROR,
+                        level=logging.INFO,
                         datefmt='%Y-%m-%d %H:%M:%S')
     #main()
     asyncio.run(main())
