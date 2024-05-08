@@ -108,9 +108,9 @@ class NetSpider():
                 current_base_domain = res.fld
                 try:
                     response = requests.get(current_url, timeout=1)
-                    soup = BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")
-                    logging.info(f"step {self.step_number} \t {src_url} > {current_url}")
+                    soup = BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")                    
                     link_elements = soup.select("a[href]")
+                    logging.info(f"step {self.step_number} \t {src_url} > {current_url} \t {len(link_elements)}")
                     for link_element in link_elements:
                         url = link_element['href']
                         url = requests.compat.urljoin(current_site, url)
