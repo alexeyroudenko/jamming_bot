@@ -1,5 +1,5 @@
 JUPYTER_PORT := 8888
-HOME_VOLUME := /d/Sync/Documents/Developer/jamming_bot/:/app
+HOME_VOLUME := /z/Sync/Developer/jamming_bot/:/app
 
 TF_TRT_DOCKER_IMAGE := jamming_bot
 DOCKER_TAG := latest

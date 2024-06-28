@@ -13,4 +13,4 @@ RUN python -m pip install -r requirements.txt
 # setup WORKDIR
 ADD . /jamming_bot
 WORKDIR /jamming_bot
-CMD ["python", "jamming_bot.py"]
+# CMD ["python", "jamming_bot.py"]

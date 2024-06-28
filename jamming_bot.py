@@ -16,6 +16,7 @@ import signal
 import time
 import logging, sys
 
+from pythonosc import udp_client
 
 class GracefulKiller:
   kill_now = False
@@ -58,6 +59,7 @@ class NetSpider():
         self.step_number = 0
         self.is_active = True
         self.filter = UrlsFilter()
+        self.osc = udp_client.SimpleUDPClient("192.168.12.103", 8000)
         pass
 
     async def create_db(self):
@@ -109,8 +111,11 @@ class NetSpider():
                 try:
                     response = requests.get(current_url, timeout=1)
                     soup = BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")                    
-                    link_elements = soup.select("a[href]")
+                    link_elements = soup.select("a[href]")                    
                     logging.info(f"step {self.step_number} \t {src_url} > {current_url} \t {len(link_elements)}")
+                    data = [self.step_number, src_url, current_url, len(link_elements)]
+                    self.osc.send_message("/step", data)
+
                     for link_element in link_elements:
                         url = link_element['href']
                         url = requests.compat.urljoin(current_site, url)
@@ -122,8 +127,9 @@ class NetSpider():
                             await self.database.execute(query=query, values=values)
                         #if self.step > 5:
                         #    break
+
                 except Exception as e:
-                    #print("Exception1:", e)
+                    print("Exception1:", e)
                     pass
 
         except Exception as e:
