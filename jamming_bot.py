@@ -109,11 +109,12 @@ class NetSpider():
                 res = get_tld(current_url, as_object=True)
                 current_base_domain = res.fld
                 try:
-                    response = requests.get(current_url, timeout=1)
+                    response = requests.get(current_url, timeout=1, stream=True)
+                    ip, port = response.raw._connection.sock.getpeername()                    
                     soup = BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")                    
                     link_elements = soup.select("a[href]")                    
-                    logging.info(f"step {self.step_number} \t {src_url} > {current_url} \t {len(link_elements)}")
-                    data = [self.step_number, src_url, current_url, len(link_elements)]
+                    logging.info(f"step {self.step_number} \t {src_url} > {current_url} \t {len(link_elements)} \t {ip}")
+                    data = [self.step_number, src_url, current_url, len(link_elements), ip]
                     self.osc.send_message("/step", data)
 
                     for link_element in link_elements:
@@ -129,7 +130,7 @@ class NetSpider():
                         #    break
 
                 except Exception as e:
-                    print("Exception1:", e)
+                    # print("Exception1:", e)
                     pass
 
         except Exception as e:
