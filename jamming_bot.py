@@ -59,7 +59,7 @@ class NetSpider():
         self.step_number = 0
         self.is_active = True
         self.filter = UrlsFilter()
-        self.osc = udp_client.SimpleUDPClient("127.0.0.1", 8000)
+        self.osc = udp_client.SimpleUDPClient("192.168.12.255", 8000)
         pass
 
     async def create_db(self):
