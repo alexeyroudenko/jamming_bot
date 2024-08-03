@@ -64,10 +64,10 @@ class NetSpider():
 
     async def create_db(self):
         logging.info("create_db")
-        #now = datetime.now()
-        #date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
-        #self.db_name = f"db_{date_time}.db"
-        self.db_name = "database.db"
+        now = datetime.now()
+        date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+        self.db_name = f"db_{date_time}.db"
+        #self.db_name = "database.db"
         resume = False
         if os.path.exists(self.db_name):
             resume = True
