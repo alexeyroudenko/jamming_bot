@@ -67,7 +67,7 @@ class NetSpider():
         now = datetime.now()
         date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
         self.db_name = f"db_{date_time}.db"
-        #self.db_name = "database.db"
+        # self.db_name = "database.db"
         resume = False
         if os.path.exists(self.db_name):
             resume = True
@@ -87,21 +87,32 @@ class NetSpider():
             query = "INSERT INTO Urls(hostname, url, visited) VALUES (:hostname, :url, :visited)"
             await self.database.execute(query=query, values=values)
         except Exception as e:
-            print("Exception1:", e)
+            print("Exception set_visited:", e)
+            pass
+    
+    async def insert(self, url):
+        logging.info(f"insert {url}")
+        try:
+            values = self.filter.get_values(url)
+            query = "INSERT INTO Urls(hostname, url, visited) VALUES (:hostname, :url, :visited)"
+            await self.database.execute(query=query, values=values)
+        except Exception as e:
+            print("Exception insert:", e)
             pass
 
     async def step(self):
         #logging.info("self.step", str(self.step_number))
         self.step_number = self.step_number + 1
-        query = "SELECT id, hostname, url, src_url, count(visited) FROM Urls where visited==0 GROUP BY hostname ORDER BY count(visited) LIMIT 1"
+        query = "SELECT id, hostname, url, src_url, count(visited) FROM Urls where visited==0 GROUP BY hostname ORDER BY count(visited) LIMIT 1"        
         rows = await self.database.fetch_all(query=query)
+
         try:
-            #print(rows)
             url_id = rows[0][0]
             current_url = rows[0][2]
             src_url = rows[0][3]
-            query = f"UPDATE Urls SET visited=1 WHERE id={url_id}"
+            query = f"UPDATE Urls SET visited=1 WHERE id={url_id}"            
             await self.database.execute(query=query)
+            
             current_domain = urlparse(current_url).hostname
             current_site = urlparse(current_url).scheme + "://" + urlparse(current_url).netloc
             valid = validators.url(current_url)
@@ -126,23 +137,24 @@ class NetSpider():
                             values['src_url'] = current_url
                             query = "INSERT OR IGNORE INTO Urls(hostname, url, src_url, visited) VALUES (:hostname, :url, :src_url, :visited)"
                             await self.database.execute(query=query, values=values)
-                        #if self.step > 5:
-                        #    break
+                        # if self.step_number > 5:
+                        #     break
 
                 except Exception as e:
-                    # print("Exception1:", e)
+                    print("Exception1:", e)
                     pass
 
         except Exception as e:
             print(f"Exception2: {rows}", e)
+            pass
 
     """
     Controls
     """
     async def start(self, start_url):
-        logging.info("start")
+        logging.info(f"start with {start_url}")
         await self.create_db()
-        await self.set_visited(start_url)
+        await self.insert(start_url)
         self.step_number = 0
 
     def stop(self):
@@ -156,11 +168,13 @@ class NetSpider():
 async def main():
     killer = GracefulKiller()
     spider = NetSpider()
-    await spider.start('http://www.arthew0.ru/')
+    await spider.start('http://arthew0.online')
     try:
         while True:
             if spider.is_active:
                 await spider.step()
+                # if spider.step_number > 5:
+                #     break
             else:
                 time.sleep(1)
             if killer.kill_now:
@@ -170,9 +184,13 @@ async def main():
 
 
 if __name__ == '__main__':
+    now = datetime.now()
+    date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+    log_file_name = f"db_{date_time}.log"
+    
     logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                         handlers=[
-                            logging.FileHandler("crowler.log"),
+                            logging.FileHandler(log_file_name),
                             logging.StreamHandler(sys.stdout)
                         ],
                         # filemode='a',
