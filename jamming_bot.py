@@ -161,7 +161,7 @@ class NetSpider():
                     count_elements = 0
                     for link_element in link_elements:
                         count_elements += 1
-                        if count_elements > 50:
+                        if count_elements > 10:
                            break
 
                         url = link_element['href']
@@ -206,6 +206,7 @@ class NetSpider():
             logging.error(f"Exception step 2 {e2}")
             #print(f"Exception in step 2: {rows}", e, traceback.print_exc())
             if self.count_errors > 10:
+                self.stop()
                 exit()
             pass
 
@@ -217,8 +218,16 @@ class NetSpider():
         await self.create_db()
         await self.insert(start_url)
         self.step_number = 0
+        try:
+            self.osc.send_message("/start", {})
+        except Exception as e0:
+            logging.error(f"error send OSC: {e0}")
 
     def stop(self):
+        try:
+            self.osc.send_message("/stop", {})
+        except Exception as e0:
+            logging.error(f"error send OSC: {e0}")
         pass
 
     def reset(self):
