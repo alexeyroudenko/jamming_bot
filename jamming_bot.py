@@ -1,10 +1,11 @@
+#!/home/pi/jamming_bot/.venv/bin/python
 import os
 import sys
 import csv
 from datetime import datetime
 import time
 from urllib.parse import urlparse
-
+import traceback
 import requests
 from bs4 import BeautifulSoup
 from databases import Database
@@ -62,6 +63,7 @@ class NetSpider():
         self.step_number = 0
         self.is_active = True
         self.filter = UrlsFilter()
+        self.count_errors = 0
 
         import socket
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -113,7 +115,7 @@ class NetSpider():
             query = "INSERT INTO Urls(hostname, url, visited) VALUES (:hostname, :url, :visited)"
             await self.database.execute(query=query, values=values)
         except Exception as e:
-            print("Exception insert:", e)
+            logging.error(f"Exception insert {e}")
             pass
 
     async def step(self):
@@ -121,7 +123,6 @@ class NetSpider():
         self.step_number = self.step_number + 1
         query = "SELECT id, hostname, url, src_url, count(visited) FROM Urls where visited==0 GROUP BY hostname ORDER BY count(visited) LIMIT 1"        
         rows = await self.database.fetch_all(query=query)
-
         try:
             url_id = rows[0][0]
             current_url = rows[0][2]
@@ -142,7 +143,11 @@ class NetSpider():
                     link_elements = soup.select("a[href]")                    
                     logging.info(f"step {self.step_number} \t {src_url} > {current_url} \t {len(link_elements)} \t {ip}")
                     data = [self.step_number, src_url, current_url, len(link_elements), ip]
-                    self.osc.send_message("/step", data)
+                    
+                    try:
+                        self.osc.send_message("/step", data)
+                    except Exception as e:
+                        logging.error(f"error send OSC: {e}")
 
                     for link_element in link_elements:
                         url = link_element['href']
@@ -157,11 +162,16 @@ class NetSpider():
                         #     break
 
                 except Exception as e:
-                    print("Exception1:", e)
+                    logging.error(f"Exception step 1 {e}")
+                    #print("Exception in step 1:", e, traceback.print_exc())
                     pass
 
         except Exception as e:
-            print(f"Exception2: {rows}", e)
+            self.count_errors += 1
+            logging.error(f"Exception step 2 {e}")
+            #print(f"Exception in step 2: {rows}", e, traceback.print_exc())
+            if self.count_errors > 4:
+                exit()
             pass
 
     """
