@@ -14,7 +14,7 @@ from tld import get_tld
 import validators
 import signal
 import time
-import logging, sys
+import coloredlogs,logging, sys
 
 from pythonosc import udp_client
 
@@ -197,5 +197,7 @@ if __name__ == '__main__':
                         encoding='utf-8',
                         level=logging.INFO,
                         datefmt='%Y-%m-%d %H:%M:%S')
-    #main()
+    
+    logger = logging.getLogger() 
+    coloredlogs.install(level="INFO", logger=logger)
     asyncio.run(main())

@@ -5,3 +5,5 @@ requests
 validators
 aiosqlite
 python-osc
+coloredlogs
+colorama
