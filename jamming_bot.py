@@ -157,15 +157,16 @@ class NetSpider():
                     
                     data = [self.step_number, src_url, current_url, len(link_elements), ip]
                     if self.step_number > 1:
-
-                        from ip2geotools.databases.noncommercial import DbIpCity
-                        response = DbIpCity.get(ip, api_key='free') 
-                        data.append(response.latitude)
-                        data.append(response.longitude)
-                        data.append(response.city)
-
-
-                    logging.info(f"response {response}")
+                        try:
+                            from ip2geotools.databases.noncommercial import DbIpCity
+                            response = DbIpCity.get(ip, api_key='free')
+                            # logging.info(f"response {response}") 
+                            data.append(response.latitude)
+                            data.append(response.longitude)
+                            data.append(response.city)
+                        except Exception as e:
+                            pass
+                            # logging.error(f"Error retrieve coords {e}")
                     
                     try:
                         self.osc.send_message("/step", data)
