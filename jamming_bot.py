@@ -15,6 +15,8 @@ import validators
 import signal
 import time
 import coloredlogs,logging, sys
+import yaml
+from yaml.loader import SafeLoader
 
 from pythonosc import udp_client
 
@@ -55,11 +57,25 @@ class NetSpider():
     """NetSpider my spider
        TODO: add sites screenshots
     """
-    def __init__(self):
+    def __init__(self, sleep_time, osc_address):
+        self.sleep_time = sleep_time
         self.step_number = 0
         self.is_active = True
         self.filter = UrlsFilter()
-        self.osc = udp_client.SimpleUDPClient("192.168.12.255", 8000)
+
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+
+        logging.info(f"my ip {ip}")
+        logging.info(f"osc address ip {osc_address}")
+        #mask = [0,0,0,255]
+        #broadcast = [(ioctet | ~moctet) & 0xff for ioctet, moctet in zip(ip, mask)]
+        #print(broadcast)
+
+        self.osc = udp_client.SimpleUDPClient(osc_address, 8000)
         pass
 
     async def create_db(self):
@@ -166,8 +182,12 @@ class NetSpider():
 
 
 async def main():
+    config_file = "jamming_bot.yaml"
+    with open(config_file) as file:
+        config = yaml.load(file, Loader=SafeLoader)
+
     killer = GracefulKiller()
-    spider = NetSpider()
+    spider = NetSpider(config['sleep_time'], config['osc_adress'])
     await spider.start('http://arthew0.online')
     try:
         while True:
@@ -176,7 +196,7 @@ async def main():
                 # if spider.step_number > 5:
                 #     break
             else:
-                time.sleep(1)
+                time.sleep(spider.sleep_time)
             if killer.kill_now:
                 break
     except KeyboardInterrupt as ex:
@@ -200,4 +220,5 @@ if __name__ == '__main__':
     
     logger = logging.getLogger() 
     coloredlogs.install(level="INFO", logger=logger)
+    coloredlogs.install(fmt='%(asctime)s %(name)s[%(process)d] %(levelname)s %(message)s')
     asyncio.run(main())
