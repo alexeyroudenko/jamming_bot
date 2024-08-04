@@ -15,7 +15,8 @@ from tld import get_tld
 import validators
 import signal
 import time
-import coloredlogs,logging, sys
+
+import logging, sys
 import yaml
 from yaml.loader import SafeLoader
 
@@ -45,7 +46,7 @@ class UrlsFilter():
     def get_values(self, url):
         hostname = urlparse(url).hostname
         data = {"hostname": hostname, "url": url, "visited":0}
-        logger.debug(f"get values {hostname} {url} {data}")
+        logging.debug(f"get values {hostname} {url} {data}")
         return data
 
     def init_data(self):
@@ -63,12 +64,13 @@ class NetSpider():
     """NetSpider my spider
        TODO: add sites screenshots
     """
-    def __init__(self, sleep_time, osc_address):
+    def __init__(self, sleep_time, osc_address, resolve_coords):
         self.filter = UrlsFilter()
         self.sleep_time = sleep_time
         self.step_number = 0
         self.is_active = True
         self.count_errors = 0
+        self.resolve_coords = resolve_coords
         
 
         import socket
@@ -156,17 +158,19 @@ class NetSpider():
                     logging.info(f"step {self.step_number} \t {src_url} > {current_url} \t {len(link_elements)} \t {ip}")
                     
                     data = [self.step_number, src_url, current_url, len(link_elements), ip]
-                    if self.step_number > 1:
-                        try:
-                            from ip2geotools.databases.noncommercial import DbIpCity
-                            response = DbIpCity.get(ip, api_key='free')
-                            # logging.info(f"response {response}") 
-                            data.append(response.latitude)
-                            data.append(response.longitude)
-                            data.append(response.city)
-                        except Exception as e:
-                            pass
-                            # logging.error(f"Error retrieve coords {e}")
+                    
+                    if self.resolve_coords:
+                        if self.step_number > 1:
+                            try:
+                                from ip2geotools.databases.noncommercial import DbIpCity
+                                response = DbIpCity.get(ip, api_key='free')
+                                # logging.info(f"response {response}") 
+                                data.append(response.latitude)
+                                data.append(response.longitude)
+                                data.append(response.city)
+                            except Exception as e:
+                                pass
+                                # logging.error(f"Error retrieve coords {e}")
                     
                     try:
                         self.osc.send_message("/step", data)
@@ -194,18 +198,18 @@ class NetSpider():
                                 values['hostname'] = current_domain
                                 query = "INSERT OR IGNORE INTO Urls(hostname, url, src_url, visited) VALUES (:hostname, :url, :src_url, :visited)"
                                 #logger.debug(f"added urls {values}")
-                                logger.debug(f"add local href {href} because host {new_hostname} \t values{values}")
+                                logging.debug(f"add local href {href} because host {new_hostname} \t values{values}")
                                 await self.database.execute(query=query, values=values)
                                 count_elements += 1
                             else:
                                 if self.filter.clean_url(new_hostname) in self.filter.filters:
-                                    logger.debug(f"skip href {href} because host {new_hostname}")
+                                    logging.debug(f"skip href {href} because host {new_hostname}")
                                 else:   
                                     values = self.filter.get_values(href)
                                     values['hostname'] = new_hostname
                                     values['url'] = href
                                     values['src_url'] = current_url
-                                    logger.debug(f"add href {href} because host {new_hostname} \t values{values}")
+                                    logging.debug(f"add href {href} because host {new_hostname} \t values{values}")
                                     query = "INSERT OR IGNORE INTO Urls(hostname, url, src_url, visited) VALUES (:hostname, :url, :src_url, :visited)"
                                     await self.database.execute(query=query, values=values)
                                     count_elements += 1
@@ -256,9 +260,15 @@ async def main():
     config_file = "jamming_bot.yaml"
     with open(config_file) as file:
         config = yaml.load(file, Loader=SafeLoader)
+    
+    if config['color_log']:
+        logger = logging.getLogger()
+        import coloredlogs 
+        coloredlogs.install(level="INFO", logger=logger)
+        coloredlogs.install(fmt='%(asctime)s %(name)s[%(process)d] %(levelname)s %(message)s')
 
     killer = GracefulKiller()
-    spider = NetSpider(config['sleep_time'], config['osc_adress'])
+    spider = NetSpider(config['sleep_time'], config['osc_adress'], config['resolve_coords'])
     await spider.start(config['start_url'])
     try:
         while True:
@@ -290,7 +300,5 @@ if __name__ == '__main__':
                         level=logging.INFO,
                         datefmt='%Y-%m-%d %H:%M:%S')
     
-    logger = logging.getLogger() 
-    coloredlogs.install(level="INFO", logger=logger)
-    coloredlogs.install(fmt='%(asctime)s %(name)s[%(process)d] %(levelname)s %(message)s')
+
     asyncio.run(main())
