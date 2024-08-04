@@ -1,4 +1,4 @@
 osc_adress: "192.168.31.18"
-sleep_time: 2
+sleep_time: 1
 max_errors: 100000
 start_url: 'https://arthew0.online/'

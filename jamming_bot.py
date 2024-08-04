@@ -57,6 +57,8 @@ class UrlsFilter():
                 self.filters.append(self.clean_url(''.join(row[1])))
                 self.filters.append("mailto")
 
+
+
 class NetSpider():
     """NetSpider my spider
        TODO: add sites screenshots
@@ -67,6 +69,7 @@ class NetSpider():
         self.step_number = 0
         self.is_active = True
         self.count_errors = 0
+        
 
         import socket
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -151,7 +154,18 @@ class NetSpider():
                     soup = BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")                    
                     link_elements = soup.select("a[href]")                    
                     logging.info(f"step {self.step_number} \t {src_url} > {current_url} \t {len(link_elements)} \t {ip}")
+                    
                     data = [self.step_number, src_url, current_url, len(link_elements), ip]
+                    if self.step_number > 1:
+
+                        from ip2geotools.databases.noncommercial import DbIpCity
+                        response = DbIpCity.get(ip, api_key='free') 
+                        data.append(response.latitude)
+                        data.append(response.longitude)
+                        data.append(response.city)
+
+
+                    logging.info(f"response {response}")
                     
                     try:
                         self.osc.send_message("/step", data)
@@ -160,8 +174,8 @@ class NetSpider():
 
                     count_elements = 0
                     for link_element in link_elements:
-                        count_elements += 1
-                        if count_elements > 10:
+                        
+                        if count_elements > 20:
                            break
 
                         url = link_element['href']
@@ -181,6 +195,7 @@ class NetSpider():
                                 #logger.debug(f"added urls {values}")
                                 logger.debug(f"add local href {href} because host {new_hostname} \t values{values}")
                                 await self.database.execute(query=query, values=values)
+                                count_elements += 1
                             else:
                                 if self.filter.clean_url(new_hostname) in self.filter.filters:
                                     logger.debug(f"skip href {href} because host {new_hostname}")
@@ -192,6 +207,7 @@ class NetSpider():
                                     logger.debug(f"add href {href} because host {new_hostname} \t values{values}")
                                     query = "INSERT OR IGNORE INTO Urls(hostname, url, src_url, visited) VALUES (:hostname, :url, :src_url, :visited)"
                                     await self.database.execute(query=query, values=values)
+                                    count_elements += 1
 
                         # if self.step_number > 5:
                         #     exit()
