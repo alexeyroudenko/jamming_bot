@@ -7,3 +7,5 @@ aiosqlite
 python-osc
 coloredlogs
 colorama
+pyyaml
+numpy

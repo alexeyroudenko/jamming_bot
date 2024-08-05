@@ -71,6 +71,8 @@ class NetSpider():
         self.is_active = True
         self.count_errors = 0
         self.resolve_coords = resolve_coords
+
+
         
 
         import socket
@@ -154,10 +156,12 @@ class NetSpider():
                     response = requests.get(current_url, timeout=1, stream=True)
                     ip, port = response.raw._connection.sock.getpeername()                    
                     soup = BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")                    
+                    text = soup.get_text(" ", strip=True)
+                    print(text)
                     link_elements = soup.select("a[href]")                    
                     logging.info(f"step {self.step_number} \t {src_url} > {current_url} \t {len(link_elements)} \t {ip}")
                     
-                    data = [self.step_number, src_url, current_url, len(link_elements), ip]
+                    data = [self.step_number, src_url, current_url, len(link_elements), ip, text]
                     
                     if self.resolve_coords:
                         if self.step_number > 1:
@@ -286,6 +290,7 @@ async def main():
 
 
 if __name__ == '__main__':
+
     now = datetime.now()
     date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
     log_file_name = f"db_{date_time}.log"
