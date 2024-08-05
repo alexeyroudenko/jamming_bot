@@ -72,8 +72,10 @@ class NetSpider():
         self.count_errors = 0
         self.resolve_coords = resolve_coords
 
-
-        
+        # pip install -U spacy
+        # python -m spacy download en_core_web_sm
+        import spacy
+        self.nlp = spacy.load("en_core_web_sm")
 
         import socket
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -157,7 +159,10 @@ class NetSpider():
                     ip, port = response.raw._connection.sock.getpeername()                    
                     soup = BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")                    
                     text = soup.get_text(" ", strip=True)
-                    print(text)
+
+                    doc = self.nlp(text)
+                    print("Verbs:", [token.lemma_ for token in doc if token.pos_ == "VERB"])
+
                     link_elements = soup.select("a[href]")                    
                     logging.info(f"step {self.step_number} \t {src_url} > {current_url} \t {len(link_elements)} \t {ip}")
                     

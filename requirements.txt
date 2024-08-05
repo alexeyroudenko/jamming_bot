@@ -9,3 +9,4 @@ coloredlogs
 colorama
 pyyaml
 numpy
+spacy
