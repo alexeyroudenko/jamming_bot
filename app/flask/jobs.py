@@ -16,12 +16,18 @@ def remove_html_tags(text):
     return clean_text
 
 def remove_special_characters(text):
-    # Remove non-ASCII characters
+    # Remove non-ASCII characters (keeping basic ASCII only)
     clean_text = re.sub(r'[^\x00-\x7F]+', '', text)
-    # Remove special characters except letters, numbers, and whitespace
-    clean_text = re.sub(r'[^a-zA-Z0-9\s]', '', clean_text)
-    # Remove newlines and tabs
+    # Remove control characters except space, keeping letters, numbers, basic punctuation
+    clean_text = re.sub(r'[\x00-\x1F\x7F-\x9F]', ' ', clean_text)
+    # Remove special symbols that might cause issues (keeping periods, commas, hyphens, underscores)
+    clean_text = re.sub(r'[^\w\s.,\-]', '', clean_text)
+    # Remove newlines, tabs, and carriage returns
     clean_text = clean_text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+    # Collapse multiple spaces into single space
+    clean_text = re.sub(r'\s+', ' ', clean_text)
+    # Remove leading/trailing whitespace
+    clean_text = clean_text.strip()
     return clean_text
 
 
@@ -263,17 +269,17 @@ def dostep(step):
     # tags = {}
     # if category != "Undefined topic":
 
-    for w in words:
-        print(f"word: {w}")
-        if len(w) > 4:
-            word = w[0:50]
-            import json
-            import requests
-            url = "http://tags_service:8000/api/v1/tags/"
-            headers = {'content-type': 'application/json'}
-            data = {'name': word, "count": 0}
-            response = requests.post(url, data=json.dumps(data), headers=headers)
-            tags = response.json()
+    # for w in words:
+    #     print(f"word: {w}")
+    #     if len(w) > 4:
+    #         word = w[0:50]
+    #         import json
+    #         import requests
+    #         url = "http://tags_service:8000/api/v1/tags/"
+    #         headers = {'content-type': 'application/json'}
+    #         data = {'name': word, "count": 0}
+    #         response = requests.post(url, data=json.dumps(data), headers=headers)
+    #         tags = response.json()
 
 
     #
@@ -516,9 +522,99 @@ def wait(num_iterations):
     # return {"one":"hello", "two":7}
 
 
+@job('default', connection=redis_connection, timeout=900, result_ttl=900)
+def clean_tsv_data():
+    """
+    Clean the data.tsv file by removing unsupported characters and line breaks
+    """
+    self_job = get_current_job()
+    self_job.meta['type'] = "cleaning"
+    self_job.save_meta()
+    
+    input_file = "data/data.tsv"
+    output_file = "data/data_cleaned.tsv"
+    backup_file = "data/data_backup.tsv"
+    
+    try:
+        # Read the file
+        with open(input_file, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        
+        total_lines = len(lines)
+        cleaned_lines = []
+        
+        for i, line in enumerate(lines):
+            # Remove line breaks within the line content
+            clean_line = line.replace('\n', ' ').replace('\r', ' ')
+            
+            # Split by tabs to get individual fields
+            fields = clean_line.split('\t')
+            
+            # Clean each field
+            cleaned_fields = []
+            for field in fields:
+                # Remove special characters that might cause issues
+                field = remove_special_characters(field)
+                # Replace multiple spaces with single space
+                field = ' '.join(field.split())
+                cleaned_fields.append(field)
+            
+            # Rejoin with tabs and add newline at end
+            cleaned_line = '\t'.join(cleaned_fields) + '\n'
+            cleaned_lines.append(cleaned_line)
+            
+            # Update progress
+            if i % 100 == 0:
+                self_job = get_current_job()
+                self_job.meta['progress'] = {
+                    'num_iterations': total_lines,
+                    'iteration': i,
+                    'percent': i / total_lines * 100
+                }
+                self_job.save_meta()
+        
+        # Create backup of original file
+        import shutil
+        shutil.copy2(input_file, backup_file)
+        
+        # Write cleaned data to output file
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.writelines(cleaned_lines)
+        
+        # Replace original with cleaned version
+        shutil.move(output_file, input_file)
+        
+        self_job = get_current_job()
+        self_job.meta['type'] = "completed"
+        self_job.meta['progress'] = {
+            'num_iterations': total_lines,
+            'iteration': total_lines,
+            'percent': 100
+        }
+        self_job.save_meta()
+        
+        return {
+            "status": "success",
+            "total_lines": total_lines,
+            "cleaned_lines": len(cleaned_lines),
+            "backup_file": backup_file
+        }
+        
+    except Exception as e:
+        self_job = get_current_job()
+        self_job.meta['type'] = "error"
+        self_job.meta['error'] = str(e)
+        self_job.save_meta()
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @job('default', connection=redis_connection, timeout=1)
 def add(x, y):
-    return x + y    
+    return x + y
+
 
 @job('default', connection=redis_connection, timeout=1)
 def pulse():
